@@ -6,7 +6,7 @@
 
 :root {
   --bg: #05070d;
-  --panel: rgba(12, 18, 32, 0.82);
+  --panel: rgba(11, 17, 30, 0.92);
   --panel-solid: #0c1220;
   --line: #1b2942;
   --line-bright: #2b4168;
@@ -62,7 +62,7 @@ h4 { margin: 14px 0 6px; font-size: 11px; letter-spacing: 0.12em; text-transform
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 12px;
-  backdrop-filter: blur(6px);
+  /* (no backdrop-filter: blurring behind every panel costs ~15% frame time) */
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
@@ -319,16 +319,16 @@ body.frenzy .terminal { box-shadow: inset 0 0 0 2px rgba(255, 77, 109, 0.45), in
   text-shadow: 0 0 60px rgba(63, 240, 255, 0.8); background: rgba(5, 7, 13, 0.6);
   backdrop-filter: blur(3px); animation: pulse 1s infinite;
 }
-.frozen {
-  position: fixed; inset: 0; z-index: 40; pointer-events: none; display: flex; justify-content: center; align-items: flex-start;
+.freeze-overlay {
+  position: fixed; inset: 0; z-index: 40; pointer-events: none; display: flex; justify-content: center; align-items: flex-end;
   box-shadow: inset 0 0 120px rgba(120, 190, 255, 0.55), inset 0 0 0 3px rgba(150, 210, 255, 0.7);
   animation: screenIn 0.3s;
 }
-.frozen > div {
-  margin-top: 70px; padding: 10px 22px; border-radius: 10px; background: rgba(10, 30, 60, 0.85);
+.freeze-overlay > div {
+  margin-bottom: 70px; padding: 10px 22px; border-radius: 10px; background: rgba(10, 30, 60, 0.85);
   border: 1px solid #8cc8ff; color: #cfe8ff; font-family: var(--display); letter-spacing: 0.15em; display: flex; gap: 14px;
 }
-.frozen b { color: #fff; font-variant-numeric: tabular-nums; min-width: 48px; }
+.freeze-overlay b { color: #fff; font-variant-numeric: tabular-nums; min-width: 48px; }
 body.is-frozen .desk { filter: saturate(0.3) brightness(0.8); }
 
 .modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(3, 5, 10, 0.7); backdrop-filter: blur(4px); animation: screenIn 0.2s; }

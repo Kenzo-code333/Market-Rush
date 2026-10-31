@@ -309,7 +309,7 @@ export class GameView {
           return h("span", { class: v > 0 ? "up" : "down" }, `${name} ${pct(v)}`);
         });
         const el = h("div", { class: "news-item insider", dataset: { at: tip.at ?? "" } },
-          h("div", { class: "news-tag" }, "🕵️ INSIDER TIP — PRIVATE", h("span", { class: "eta" })),
+          h("div", { class: "news-tag" }, h("span", {}, "🕵️ INSIDER · ONLY YOU"), h("span", { class: "eta" })),
           h("div", { class: "news-text" }, tip.headline),
           effects.length ? h("div", { class: "news-effects" }, effects) : null);
         return el;
@@ -453,7 +453,7 @@ export class GameView {
       const eta = el.querySelector(".eta");
       if (!at) { setText(eta, ""); continue; }
       const left = Number(at) - t;
-      setText(eta, left > 0 ? ` · hits in ${Math.ceil(left)}s` : " · happened");
+      setText(eta, left > 0 ? `hits in ${Math.ceil(left)}s` : "happened");
     }
   }
 }
