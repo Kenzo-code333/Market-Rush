@@ -49,7 +49,7 @@ COMMODITIES = {
 # Price model
 PRICE_FLOOR_FRACTION = 0.10      # a price can never drop below 10% of its starting price
 MAX_ORDER_IMPACT = 0.25          # one single order can move the price by at most 25%
-MEAN_REVERSION = 0.01            # each tick, price is pulled 1% of the way back to its "fair value"
+MEAN_REVERSION = 0.03            # each tick, price is pulled 3% of the way back to its "fair value"
 EVENT_ANCHOR_SHARE = 0.5         # share of a news shock that permanently moves the fair value
 
 # ---------------------------------------------------------------------------
@@ -69,7 +69,9 @@ RUMOR_LEAK_LEAD_MAX = 10
 # Short selling
 # ---------------------------------------------------------------------------
 SHORT_BUTTON_QTY = 10            # units per click on the "Short" button
-SHORT_LIMIT_RATIO = 1.0          # total short exposure can't exceed 100% of your net worth
+SHORT_LIMIT_RATIO = 1.0          # total short exposure can't exceed 100% of your net worth when opening
+MARGIN_CALL_RATIO = 1.5          # if exposure later grows past 150% of net worth, all shorts are force-closed
+                                 # (any shortfall beyond your cash is added to your debt)
 
 # ---------------------------------------------------------------------------
 # Loans

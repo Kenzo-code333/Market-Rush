@@ -187,3 +187,15 @@ def test_full_match_runs_to_end():
     # Play again returns everyone to the lobby with fresh wallets
     room.play_again(a.id)
     assert room.phase == "lobby" and a.cash == config.STARTING_CASH and a.shorts["food"] == 0
+
+
+def test_margin_call_force_closes_runaway_shorts():
+    room, clock, (a, b, c) = make_room()
+    act(room, a, "short", commodity="metals", qty=20)
+    assert a.shorts["metals"] == 20
+    room.market.shock("metals", 4.0)   # price ×5: short exposure explodes
+    clock.now += 1
+    room.tick()
+    assert a.shorts["metals"] == 0
+    assert a.cash >= 0                 # shortfall went to debt, not negative cash
+    assert a.debt > 0

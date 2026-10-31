@@ -268,7 +268,9 @@ class Room:
             if p.debt > 0:
                 p.debt *= 1 + rate
 
-        # 3) Cornering, history, card milestones
+        # 3) Margin calls, cornering, history, card milestones
+        for p in self.players.values():
+            self._check_margin(p)
         self._update_corners()
         self.market.record()
         self._check_milestones()
@@ -357,6 +359,27 @@ class Room:
                 c.corner_floor = 0.0
                 if old:
                     self.add_news("system", f"{old.name} lost control of {c.name}.")
+
+    def _check_margin(self, p: Player):
+        """Force-close all shorts if they've grown too big for the player's net worth."""
+        prices = self.market.prices()
+        exposure = sum(p.shorts[c] * prices[c] for c in COMMODITY_IDS)
+        if exposure <= 0 or exposure <= config.MARGIN_CALL_RATIO * max(0.0, self.net_worth(p)):
+            return
+        for cid in COMMODITY_IDS:
+            qty = p.shorts[cid]
+            if qty <= 0:
+                continue
+            avg, new_price = self.market.quote(cid, qty, +1)
+            cost = qty * avg * (1 + config.TRADE_FEE)
+            paid = min(cost, p.cash)
+            p.cash -= paid
+            p.debt += cost - paid          # shortfall becomes debt
+            p.shorts[cid] = 0
+            self.market.set_price(cid, new_price)
+            self._record_trade(p, cid, "cover", qty, avg)
+        self.toast(p.id, "📉 MARGIN CALL — your shorts were force-closed. Any shortfall was added to your debt.", "bad")
+        self.add_news("system", f"📉 Margin call: {p.name}'s short positions were force-closed!")
 
     def _check_milestones(self):
         for p in self.players.values():

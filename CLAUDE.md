@@ -130,7 +130,7 @@ All numbers below are defaults from `server/config.py`.
 * **Price impact**: `impact = min(qty × price / liquidity, 25%)`. Buying multiplies the price by
   `(1 + impact)` and selling divides it by `(1 + impact)`. The order fills at the **average** of the
   old and new price, plus a 0.5% fee, so splitting an order doesn't game the formula.
-* **Drift**: each tick the price moves by a random ±volatility, plus a 1% pull back toward its
+* **Drift**: each tick the price moves by a random ±volatility, plus a 3% pull back toward its
   "fair value". News moves the fair value (by half the shock). Player trades don't.
 * **Floor**: a price can never fall below 10% of its starting price.
 * **News**: an event every 20–40 s, with the first one at 15–25 s. The headline appears first and prices
@@ -138,6 +138,8 @@ All numbers below are defaults from `server/config.py`.
 * **Short selling**: sell units you don't own. You receive the cash, and the position is
   marked against you at the current price. Total short exposure ≤ 100% of net worth.
   "Cover" buys the units back. Open shorts are closed automatically at the final price.
+  **Margin call**: if your short exposure later grows past 150% of your net worth (checked each tick), all your
+  shorts are force-closed at market. Any cost beyond your cash is added to your debt.
 * **Loans**: $5,000 per click, max debt $10,000, 5% interest per minute (compounded each tick).
   "Repay" pays as much as your cash allows. Debt still unpaid at the bell is subtracted, plus a 10% penalty.
 * **Cornering**: hold more than 50% of all player-held units of a commodity, with those units
@@ -182,3 +184,7 @@ All numbers below are defaults from `server/config.py`.
 * **Host** is the room creator. If the host disconnects, the next connected player becomes host.
 * **Trade freeze** blocks buy, sell, short, cover and contract delivery, but not cards or loans.
 * Empty rooms are deleted after 10 minutes of inactivity.
+* **Margin call** (not in the brief): added after bot testing showed uncapped shorts could reach
+  −$800k when prices were pumped. It keeps "losses grow if it rises" without allowing absurd blow-ups.
+* **Mean reversion** was raised from 1% to 3% per tick for the same reason: sustained buying pressure
+  inflated prices 5–10×. Now a pump fades within about 20–30 s, but news still moves fair value durably.
