@@ -217,6 +217,7 @@ class Room:
         self.phase = "countdown"
         self.start_time = self.clock() + config.COUNTDOWN_SECONDS
         self._schedule_next_event(self.rng.uniform(config.EVENT_FIRST_MIN, config.EVENT_FIRST_MAX))
+        self.send(None, self.history_message())  # fresh charts for the new match
         self.dirty = True
         return True
 

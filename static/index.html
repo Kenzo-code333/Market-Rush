@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Market Rush</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="backdrop"></div>
+
+  <!-- =============================== HOME =============================== -->
+  <section id="screen-home" class="screen" hidden>
+    <div class="home-card panel">
+      <h1 class="logo">MARKET<span>RUSH</span></h1>
+      <p class="tagline">Colony Commodities Exchange · Mars Orbital Station</p>
+
+      <label class="field">Trader name
+        <input id="name-input" maxlength="16" placeholder="e.g. Nova" autocomplete="off">
+      </label>
+
+      <div id="home-create">
+        <button id="btn-create" class="btn primary wide">Create a room</button>
+        <div class="or">— or join a friend —</div>
+        <div class="join-row">
+          <input id="code-input" maxlength="4" placeholder="CODE" autocomplete="off">
+          <button id="btn-join" class="btn">Join</button>
+        </div>
+      </div>
+
+      <div id="home-join" hidden>
+        <p>Joining room <b id="join-code" class="code"></b></p>
+        <button id="btn-join-link" class="btn primary wide">Join the room</button>
+        <p class="muted small"><a href="/">or create a new room instead</a></p>
+      </div>
+
+      <p id="home-error" class="error"></p>
+
+      <details class="rules">
+        <summary>How to play</summary>
+        <ul>
+          <li>2–6 traders share one live market for 5 minutes. <b>Richest at the closing bell wins.</b></li>
+          <li>Every buy pushes the price <span class="up">up</span>, every sell pushes it <span class="down">down</span> — for everyone.</li>
+          <li>News hits every 20–40s; prices react ~2s after the headline. <i>Unconfirmed</i> rumors may be true… or planted.</li>
+          <li><b>Short</b> to profit from falling prices. Take <b>loans</b> for leverage — repay them before the bell.</li>
+          <li>Hold &gt;50% of all player-held units of a commodity to <b>corner</b> it and set a price floor.</li>
+          <li>Play your secret <b>cards</b>; earn more at profit milestones. Fulfil <b>contracts</b> for big rewards.</li>
+          <li>Last 30 seconds: <b>closing frenzy</b> — volatility doubles!</li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <!-- =============================== LOBBY ============================== -->
+  <section id="screen-lobby" class="screen" hidden>
+    <div class="lobby-card panel">
+      <h1 class="logo small">MARKET<span>RUSH</span></h1>
+      <div class="lobby-code">ROOM <span id="lobby-code" class="code"></span></div>
+      <div class="share">
+        <input id="share-link" readonly>
+        <button id="btn-copy" class="btn">Copy link</button>
+      </div>
+      <ul id="lobby-players"></ul>
+      <button id="btn-start" class="btn primary wide">🔔 Ring the opening bell</button>
+      <p id="lobby-hint" class="muted"></p>
+    </div>
+  </section>
+
+  <!-- =============================== GAME =============================== -->
+  <section id="screen-game" class="screen" hidden>
+    <div class="terminal">
+      <!-- TOP: brand, timer, leaderboard -->
+      <header class="topbar panel">
+        <div class="brand">MARKET<span>RUSH</span><small id="room-tag"></small></div>
+        <div id="timer" class="timer">
+          <div id="timer-text">5:00</div>
+          <div class="timer-bar"><div id="timer-fill"></div></div>
+          <div class="frenzy-tag">⚠ CLOSING FRENZY</div>
+        </div>
+        <div id="leaderboard" class="leaderboard"></div>
+      </header>
+
+      <!-- LEFT: portfolio -->
+      <aside class="left panel">
+        <h3>Portfolio</h3>
+        <div class="networth">
+          <label>Net worth</label>
+          <div id="nw" class="big">$10,000</div>
+          <div id="nw-change" class="up">+0.0%</div>
+        </div>
+        <div class="stat"><label>Cash</label><span id="cash">$10,000</span></div>
+        <div class="stat" id="debt-row"><label>Debt</label><span id="debt">$0</span></div>
+        <div id="status-badges"></div>
+        <h4>Holdings <small class="muted">qty · value</small></h4>
+        <div id="holdings"></div>
+        <h4>Credit</h4>
+        <div class="loan-box">
+          <button id="btn-loan" class="btn">Take loan</button>
+          <button id="btn-repay" class="btn">Repay</button>
+        </div>
+        <p id="loan-note" class="muted small"></p>
+        <div id="audits"></div>
+      </aside>
+
+      <!-- CENTER: charts + contracts -->
+      <main class="center">
+        <div id="charts" class="charts"></div>
+      </main>
+
+      <!-- RIGHT: news feed -->
+      <aside class="right panel">
+        <h3>Newsfeed <span class="live-dot"></span></h3>
+        <div id="insider"></div>
+        <div id="news" class="news"></div>
+      </aside>
+
+      <!-- BOTTOM: trading desk + cards -->
+      <footer class="bottom">
+        <div id="desk" class="desk"></div>
+        <div class="cards-panel panel">
+          <h3>Secret cards</h3>
+          <div id="cards" class="cards"></div>
+        </div>
+      </footer>
+    </div>
+    <div id="countdown-overlay" class="countdown" hidden></div>
+    <div id="frozen-overlay" class="frozen" hidden><div>🧊 TRADE FREEZE<b>10s</b></div></div>
+  </section>
+
+  <!-- =============================== RECAP ============================== -->
+  <section id="screen-recap" class="screen" hidden>
+    <div class="recap">
+      <div class="recap-top">
+        <div id="recap-winner" class="recap-winner panel"></div>
+        <div class="panel recap-standings-wrap">
+          <h3>Final standings</h3>
+          <div id="recap-standings" class="standings"></div>
+        </div>
+      </div>
+      <div class="panel recap-chart-panel">
+        <div class="recap-chart-head">
+          <h3>Match replay</h3>
+          <div id="recap-tabs" class="tabs"></div>
+        </div>
+        <canvas id="recap-canvas"></canvas>
+        <div id="recap-legend" class="legend"></div>
+      </div>
+      <div class="recap-bottom">
+        <div class="panel"><h3>Rumors — true or fake?</h3><div id="recap-rumors" class="scroll"></div></div>
+        <div class="panel"><h3>Cards played</h3><div id="recap-cards" class="scroll"></div></div>
+      </div>
+      <div class="recap-actions">
+        <button id="btn-again" class="btn primary">🔁 Play again with this room</button>
+        <span id="recap-wait" class="muted">Waiting for the host to start a new round…</span>
+        <button id="btn-leave" class="btn ghost">Leave room</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="modal" class="modal" hidden></div>
+  <div id="toasts" class="toasts"></div>
+  <div id="tooltip" class="tooltip" hidden></div>
+  <div id="conn-status" class="conn-status" hidden>Reconnecting…</div>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
