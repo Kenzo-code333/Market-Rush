@@ -83,7 +83,7 @@ UNPAID_LOAN_PENALTY = 0.10       # unpaid debt at the closing bell costs an extr
 # Cornering
 # ---------------------------------------------------------------------------
 CORNER_SHARE = 0.5               # hold MORE than 50% of all player-held units...
-CORNER_MIN_UNITS = 20            # ...(and at least this many units must be held in total)
+CORNER_MIN_VALUE = 3_000         # ...(and all player-held units together must be worth at least $3,000)
 CORNER_FLOOR_RATIO = 0.90        # ...to set a price floor at 90% of the price when you took control
 
 # ---------------------------------------------------------------------------

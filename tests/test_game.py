@@ -108,7 +108,7 @@ def test_loans_interest_and_penalty():
 
 def test_cornering_sets_floor():
     room, clock, (a, b, c) = make_room()
-    act(room, a, "buy", commodity="water", qty=100)
+    act(room, a, "buy", commodity="water", qty=150)
     cm = room.market["water"]
     assert cm.corner_by == a.id
     assert cm.floor >= cm.price * 0.8

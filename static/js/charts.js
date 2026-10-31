@@ -81,11 +81,14 @@ export class LiveChart {
     const k = Math.min(1, dt * 10);
     this.shownHead = lerp(this.shownHead, this.head, k);
 
+    // Window grows from 30s to the full window as the match goes on, so the
+    // chart is filled from the start (and the growth is continuous = smooth).
+    const win = Math.min(this.window, Math.max(30, this.shownX));
     const xMax = this.shownX;
-    const xMin = xMax - this.window;
+    const xMin = xMax - win;
     const padR = 10 * dpr, padT = 8 * dpr, padB = 8 * dpr;
     const plotW = w - padR;
-    const X = (x) => ((x - xMin) / this.window) * plotW;
+    const X = (x) => ((x - xMin) / win) * plotW;
 
     // --- y range (eased so the chart never "jumps") ---
     const first = Math.max(0, Math.floor(xMin));
@@ -95,7 +98,7 @@ export class LiveChart {
       hi = Math.max(hi, this.points[i]);
     }
     if (this.floor) lo = Math.min(lo, this.floor);
-    const minSpan = Math.max(hi * 0.04, 0.05);
+    const minSpan = Math.max(hi * 0.12, 0.05); // small wiggles stay small
     if (hi - lo < minSpan) { const mid = (hi + lo) / 2; lo = mid - minSpan / 2; hi = mid + minSpan / 2; }
     const pad = (hi - lo) * 0.12;
     lo -= pad; hi += pad;
@@ -229,10 +232,11 @@ export class RecapChart {
       ctx.moveTo(padL, y); ctx.lineTo(w - padR, y);
       ctx.fillText("$" + v.toFixed(v < 100 ? 2 : 0), 4 * dpr, y + 3 * dpr);
     }
-    for (let s = 0; s < vals.length; s += 60) {
+    const every = vals.length > 150 ? 60 : 15; // label spacing in ticks
+    for (let s = 0; s < vals.length; s += every) {
       const x = Math.round(X(s)) + 0.5;
       ctx.moveTo(x, padT); ctx.lineTo(x, h - padB);
-      ctx.fillText(`${s / 60}:00`, x - 10 * dpr, h - 6 * dpr);
+      ctx.fillText(`${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`, x - 10 * dpr, h - 6 * dpr);
     }
     ctx.stroke();
 

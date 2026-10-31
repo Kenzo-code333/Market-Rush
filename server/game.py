@@ -345,7 +345,7 @@ class Room:
             c = self.market[cid]
             total = sum(p.holdings[cid] for p in self.players.values())
             leader = max(self.players.values(), key=lambda p: p.holdings[cid], default=None)
-            controls = (leader is not None and total >= config.CORNER_MIN_UNITS
+            controls = (leader is not None and total * c.price >= config.CORNER_MIN_VALUE
                         and leader.holdings[cid] > config.CORNER_SHARE * total)
             if controls and c.corner_by != leader.id:
                 c.corner_by = leader.id

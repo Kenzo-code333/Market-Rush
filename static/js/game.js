@@ -277,9 +277,14 @@ export class GameView {
 
     // Status badges
     const badges = $("#status-badges");
-    badges.replaceChildren(
-      me.shield ? h("span", { class: "badge shield" }, "🛡️ Shield active") : null,
-      me.frozen_for > 0 ? h("span", { class: "badge frozen" }, "🧊 Frozen") : null);
+    const key = `${me.shield}|${me.frozen_for > 0}`;
+    if (badges.dataset.key !== key) { // only touch the DOM when it changes
+      badges.dataset.key = key;
+      badges.replaceChildren(...[
+        me.shield ? h("span", { class: "badge shield" }, "🛡️ Shield active") : null,
+        me.frozen_for > 0 ? h("span", { class: "badge frozen" }, "🧊 Frozen") : null,
+      ].filter(Boolean));
+    }
     document.body.classList.toggle("is-frozen", me.frozen_for > 0);
 
     // Audited rivals

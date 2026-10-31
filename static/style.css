@@ -25,10 +25,10 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
+html { background: var(--bg); }
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
   color: var(--text);
   font-family: var(--mono);
   font-size: 13px;
@@ -228,10 +228,10 @@ body.frenzy .terminal { box-shadow: inset 0 0 0 2px rgba(255, 77, 109, 0.45), in
 .chart-canvas { flex: 1; min-height: 0; width: 100%; display: block; margin-top: 6px; }
 
 /* price flashes: quick green/red glow that fades out */
-.flash-up { animation: flashUp 0.7s ease-out; }
-.flash-down { animation: flashDown 0.7s ease-out; }
-@keyframes flashUp { 0% { color: #fff; background: rgba(43, 255, 136, 0.45); text-shadow: 0 0 12px var(--green); } 100% { background: transparent; } }
-@keyframes flashDown { 0% { color: #fff; background: rgba(255, 77, 109, 0.45); text-shadow: 0 0 12px var(--red); } 100% { background: transparent; } }
+.flash-up { animation: flashUp 0.6s ease-out; }
+.flash-down { animation: flashDown 0.6s ease-out; }
+@keyframes flashUp { 0% { color: #fff; background: rgba(43, 255, 136, 0.32); text-shadow: 0 0 10px var(--green); } 100% { background: transparent; } }
+@keyframes flashDown { 0% { color: #fff; background: rgba(255, 77, 109, 0.32); text-shadow: 0 0 10px var(--red); } 100% { background: transparent; } }
 .flash { animation: flashGeneric 1.2s ease-out; }
 @keyframes flashGeneric { 0%, 30% { box-shadow: 0 0 0 2px var(--amber), 0 0 24px rgba(255, 197, 71, 0.5); } 100% { box-shadow: none; } }
 
