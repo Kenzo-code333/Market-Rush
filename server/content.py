@@ -41,7 +41,7 @@ RUMOR_TEMPLATES = {
         "Insiders say a megacorp is quietly hoarding {name}",
         "Leaked memo hints {name} quotas will be slashed",
         "Unverified: {name} reserves contaminated at Habitat 7",
-        "Sources claim a {name} supply ship went dark",
+        "Sources claim the {name} supply ship went dark",
     ],
     "down": [
         "Unverified: massive {name} shipment inbound from Europa",
