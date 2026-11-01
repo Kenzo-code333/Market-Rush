@@ -13,6 +13,7 @@
 import { h, $, toast, stepTweens } from "./util.js";
 import { GameView } from "./game.js";
 import { RecapView } from "./recap.js";
+import { SoloRoom, LocalSocket } from "./solo-engine.js";
 
 const app = {
   code: null,        // room code, e.g. "KXPT"
@@ -24,6 +25,20 @@ const app = {
   phase: null,
   fatal: false,      // true => don't auto-reconnect
   retries: 0,
+  solo: false,       // true => practice vs AI, engine runs in this tab
+  soloRoom: null,
+};
+
+// The standalone preview (tools/build_preview.py) has no Python server:
+// only the practice mode is available there.
+const STANDALONE = !!window.MR_STANDALONE;
+
+// Browser storage can be blocked (private mode, sandboxed previews):
+// never let that break the game.
+const store = {
+  get: (area, k) => { try { return window[area].getItem(k); } catch { return null; } },
+  set: (area, k, v) => { try { window[area].setItem(k, v); } catch { /* ignore */ } },
+  del: (area, k) => { try { window[area].removeItem(k); } catch { /* ignore */ } },
 };
 
 // sessionStorage is per browser TAB, so each tab can be a different player,
@@ -44,8 +59,9 @@ function homeError(text) {
 
 function setupHome() {
   const params = new URLSearchParams(location.search);
-  const code = (params.get("room") || "").toUpperCase();
-  $("#name-input").value = localStorage.getItem("marketrush:name") || "";
+  const code = STANDALONE ? "" : (params.get("room") || "").toUpperCase();
+  $("#name-input").value = store.get("localStorage", "marketrush:name") || "";
+  document.body.classList.toggle("standalone", STANDALONE);
 
   if (code) {
     $("#home-create").hidden = true;
@@ -53,7 +69,7 @@ function setupHome() {
     $("#join-code").textContent = code;
     app.code = code;
     // Already joined this room in this tab? Reconnect silently.
-    if (sessionStorage.getItem(tokenKey(code))) { connect(); return; }
+    if (store.get("sessionStorage", tokenKey(code))) { connect(); return; }
   }
   show("home");
   $("#name-input").focus();
@@ -62,8 +78,19 @@ function setupHome() {
 function getName() {
   const name = $("#name-input").value.trim();
   if (!name) { homeError("Enter your trader name first."); $("#name-input").focus(); return null; }
-  localStorage.setItem("marketrush:name", name);
+  store.set("localStorage", "marketrush:name", name);
   return name;
+}
+
+/** Practice vs AI traders: the whole game engine runs in this tab. */
+function startPractice() {
+  const name = getName();
+  if (!name) return;
+  app.solo = true;
+  app.soloRoom = new SoloRoom("SOLO");
+  app.code = "SOLO";
+  app.pendingName = name;
+  connect();
 }
 
 async function createRoom() {
@@ -75,6 +102,7 @@ async function createRoom() {
 }
 
 function enterRoom(code, name) {
+  app.solo = false;
   app.code = code.toUpperCase();
   history.replaceState(null, "", `/?room=${app.code}`);
   app.pendingName = name;
@@ -87,7 +115,7 @@ function enterRoom(code, name) {
 function connect() {
   app.fatal = false;
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws/${app.code}`);
+  const ws = app.solo ? new LocalSocket(app.soloRoom) : new WebSocket(`${proto}://${location.host}/ws/${app.code}`);
   app.ws = ws;
   $("#conn-status").hidden = true;
 
@@ -95,7 +123,7 @@ function connect() {
     ws.send(JSON.stringify({
       type: "join",
       name: app.pendingName || $("#name-input").value.trim(),
-      token: sessionStorage.getItem(tokenKey(app.code)),
+      token: app.solo ? null : store.get("sessionStorage", tokenKey(app.code)),
     }));
   };
   ws.onmessage = (e) => onMessage(JSON.parse(e.data));
@@ -110,7 +138,7 @@ function connect() {
 }
 
 export function send(obj) {
-  if (app.ws && app.ws.readyState === WebSocket.OPEN) app.ws.send(JSON.stringify(obj));
+  if (app.ws && app.ws.readyState === 1 /* OPEN */) app.ws.send(JSON.stringify(obj));
 }
 
 function onMessage(msg) {
@@ -119,7 +147,7 @@ function onMessage(msg) {
       app.retries = 0;
       app.playerId = msg.player_id;
       app.welcome = msg;
-      sessionStorage.setItem(tokenKey(msg.code), msg.token);
+      if (!app.solo) store.set("sessionStorage", tokenKey(msg.code), msg.token);
       app.game = new GameView(msg, send);
       app.recap = null;
       app.phase = null;
@@ -136,7 +164,7 @@ function onMessage(msg) {
     case "error":
       if (msg.fatal) {
         app.fatal = true;
-        sessionStorage.removeItem(tokenKey(app.code));
+        store.del("sessionStorage", tokenKey(app.code));
         app.ws?.close();
         homeError(msg.text);
       } else toast(msg.text, "bad");
@@ -173,13 +201,20 @@ function onState(state) {
 // Lobby
 // ---------------------------------------------------------------------
 function renderLobby(state) {
-  $("#lobby-code").textContent = state.code;
-  $("#share-link").value = `${location.origin}/?room=${state.code}`;
+  const solo = !!state.solo;
+  $("#lobby-code").textContent = solo ? "PRACTICE" : state.code;
+  $("#lobby-share").hidden = solo;
+  $("#lobby-bots").hidden = !solo;
+  if (!solo) $("#share-link").value = `${location.origin}/?room=${state.code}`;
   const max = app.welcome.config.max_players;
+  const bots = state.players.filter((p) => p.bot).length;
+  $("#btn-add-bot").disabled = state.players.length >= max;
+  $("#btn-remove-bot").disabled = bots === 0;
   $("#lobby-players").replaceChildren(
     ...state.players.map((p) => h("li", { style: { "--pc": p.color }, class: p.id === state.you ? "me" : "" },
       h("span", { class: "dot" }), p.name,
-      p.id === state.host_id ? h("span", { class: "host" }, "HOST") : null,
+      p.bot ? h("span", { class: "ai" }, "AI") : null,
+      p.id === state.host_id && !solo ? h("span", { class: "host" }, "HOST") : null,
       p.id === state.you ? h("span", { class: "you" }, "YOU") : null)),
     ...Array.from({ length: Math.max(0, max - state.players.length) }, () => h("li", { class: "slot" }, "waiting for trader…")));
 
@@ -189,7 +224,8 @@ function renderLobby(state) {
   btn.hidden = !isHost;
   btn.disabled = !enough;
   $("#lobby-hint").textContent = isHost
-    ? (enough ? "Everyone in? Ring the opening bell!" : `Waiting for at least ${state.min_players} traders… share the link!`)
+    ? (solo ? "AI traders read the news, chase contracts and play cards. Good luck."
+      : enough ? "Everyone in? Ring the opening bell!" : `Waiting for at least ${state.min_players} traders… share the link!`)
     : "Waiting for the host to start the match…";
 }
 
@@ -210,6 +246,9 @@ function loop(now) {
 // Wire up buttons and go
 // ---------------------------------------------------------------------
 $("#btn-create").onclick = createRoom;
+$("#btn-practice").onclick = startPractice;
+$("#btn-add-bot").onclick = () => send({ type: "add_bot" });
+$("#btn-remove-bot").onclick = () => send({ type: "remove_bot" });
 $("#btn-join").onclick = () => {
   const code = $("#code-input").value.trim().toUpperCase();
   const name = getName();
@@ -220,7 +259,9 @@ $("#btn-join").onclick = () => {
 $("#btn-join-link").onclick = () => { const name = getName(); if (name) enterRoom(app.code, name); };
 $("#name-input").onkeydown = (e) => {
   if (e.key !== "Enter") return;
-  if (!$("#home-join").hidden) $("#btn-join-link").click(); else $("#btn-create").click();
+  if (!$("#home-join").hidden) $("#btn-join-link").click();
+  else if (STANDALONE) $("#btn-practice").click();
+  else $("#btn-create").click();
 };
 $("#code-input").onkeydown = (e) => { if (e.key === "Enter") $("#btn-join").click(); };
 $("#btn-start").onclick = () => send({ type: "start" });
@@ -228,7 +269,16 @@ $("#btn-copy").onclick = async () => {
   try { await navigator.clipboard.writeText($("#share-link").value); toast("Link copied!", "good"); }
   catch { $("#share-link").select(); }
 };
-$("#btn-leave").onclick = () => { sessionStorage.removeItem(tokenKey(app.code)); location.href = "/"; };
+$("#btn-leave").onclick = () => {
+  if (app.solo) { // no server to leave: just go back to the home screen
+    app.ws?.close();
+    app.ws = null; app.phase = null; app.recap = null;
+    show("home");
+    return;
+  }
+  store.del("sessionStorage", tokenKey(app.code));
+  location.href = "/";
+};
 
 setupHome();
 requestAnimationFrame(loop);

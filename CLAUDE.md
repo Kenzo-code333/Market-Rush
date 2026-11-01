@@ -24,6 +24,20 @@ Open http://localhost:8000. To play several traders on one computer, open
 the room link in several tabs. Each tab is a separate player, because identity is
 kept in `sessionStorage`, which is per tab.
 
+### Practice vs AI and the standalone preview
+
+The home screen has a **🤖 Practice vs AI traders** button: you play alone against 1–5 AI
+traders (add or remove them in the lobby). In this mode the game engine runs **in the
+browser tab** (`static/js/solo-engine.js`), so it also works with no server at all:
+
+```bash
+python tools/build_preview.py      # -> dist/market-rush-preview.html (one self-contained file)
+```
+
+That single file is the shareable, playable preview. It contains the CSS, all JS and the
+numbers from `config.py`/`content.py`. It offers only the practice mode, because
+multiplayer needs the Python server.
+
 Useful environment variables (all optional):
 
 | Variable            | Effect |
@@ -61,6 +75,9 @@ static/
   js/recap.js          # RecapView: winner, standings, chart replay, rumor truth, card log
   js/charts.js         # LiveChart (60fps interpolated) + RecapChart (animated replay)
   js/util.js           # DOM helper h(), formatting, number tweens, toasts, modal
+  js/solo-engine.js    # practice mode: JS port of market.py + game.py, AI traders, LocalSocket
+server/export_data.py  # config.py + content.py as JS (served at /solo-data.js, embedded by the build)
+tools/build_preview.py # bundles everything into dist/market-rush-preview.html
 tests/test_game.py     # pytest unit tests for the rules
 tools/simulate.py      # bot players over real WebSockets
 ```
@@ -184,6 +201,13 @@ All numbers below are defaults from `server/config.py`.
 * **Host** is the room creator. If the host disconnects, the next connected player becomes host.
 * **Trade freeze** blocks buy, sell, short, cover and contract delivery, but not cards or loans.
 * Empty rooms are deleted after 10 minutes of inactivity.
+* **Practice mode engine** is a JavaScript translation of `market.py` + `game.py`, using the same
+  method names. It reads all numbers from `config.py` (through `export_data.py`), so balance
+  tweaks apply to both modes. **Rule changes** in `game.py`, however, must be mirrored by hand in
+  `solo-engine.js`. The Python server stays the reference for multiplayer.
+* **AI traders** have personalities: Kepler buys below fair value, Juno chases momentum, Rhea trades
+  headlines and contracts, Atlas makes big orders and borrows, and Lyra plays cards and rumors. They only see what a
+  human sees (prices, headlines, rumors, contracts), plus their own insider tips.
 * **Margin call** (not in the brief): added after bot testing showed uncapped shorts could reach
   −$800k when prices were pumped. It keeps "losses grow if it rises" without allowing absurd blow-ups.
 * **Mean reversion** was raised from 1% to 3% per tick for the same reason: sustained buying pressure

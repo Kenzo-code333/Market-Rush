@@ -19,10 +19,11 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import config, content
+from .export_data import game_data_js
 from .game import Room
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -65,6 +66,12 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 @app.get("/")
 async def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/solo-data.js")
+async def solo_data():
+    """config.py + content.py as JavaScript, for the "Practice vs AI" mode."""
+    return Response(game_data_js(), media_type="application/javascript")
 
 
 @app.post("/api/rooms")

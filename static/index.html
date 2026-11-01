@@ -24,12 +24,15 @@
       </label>
 
       <div id="home-create">
-        <button id="btn-create" class="btn primary wide">Create a room</button>
-        <div class="or">— or join a friend —</div>
-        <div class="join-row">
+        <button id="btn-create" class="btn primary wide multiplayer-only">Create a room</button>
+        <div class="or multiplayer-only">— or join a friend —</div>
+        <div class="join-row multiplayer-only">
           <input id="code-input" maxlength="4" placeholder="CODE" autocomplete="off">
           <button id="btn-join" class="btn">Join</button>
         </div>
+        <button id="btn-practice" class="btn wide practice">🤖 Practice vs AI traders</button>
+        <p class="muted small standalone-only">This preview runs entirely in your browser against AI traders.
+          For online multiplayer with friends, run the Python server: <code>python run.py</code>.</p>
       </div>
 
       <div id="home-join" hidden>
@@ -60,9 +63,13 @@
     <div class="lobby-card panel">
       <h1 class="logo small">MARKET<span>RUSH</span></h1>
       <div class="lobby-code">ROOM <span id="lobby-code" class="code"></span></div>
-      <div class="share">
+      <div class="share" id="lobby-share">
         <input id="share-link" readonly>
         <button id="btn-copy" class="btn">Copy link</button>
+      </div>
+      <div class="share" id="lobby-bots" hidden>
+        <button id="btn-add-bot" class="btn">+ Add AI trader</button>
+        <button id="btn-remove-bot" class="btn ghost">− Remove one</button>
       </div>
       <ul id="lobby-players"></ul>
       <button id="btn-start" class="btn primary wide">🔔 Ring the opening bell</button>
@@ -166,6 +173,7 @@
   <div id="tooltip" class="tooltip" hidden></div>
   <div id="conn-status" class="conn-status" hidden>Reconnecting…</div>
 
+  <script src="/solo-data.js"></script>
   <script type="module" src="/static/js/app.js"></script>
 </body>
 </html>
