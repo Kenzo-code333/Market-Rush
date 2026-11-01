@@ -43,8 +43,17 @@
 
       <p id="home-error" class="error"></p>
 
+      <div class="quickstart">
+        <b>New here? Three things to know</b>
+        <ol>
+          <li>Buy goods when they're cheap, sell when they're expensive. Hover a button to see the cost.</li>
+          <li>News moves prices: tags show which goods a headline affects.</li>
+          <li>Contracts are easy money: press <b>BUY</b> on a contract, then <b>DELIVER</b>.</li>
+        </ol>
+      </div>
+
       <details class="rules">
-        <summary>How to play</summary>
+        <summary>All the rules</summary>
         <ul>
           <li>2–6 traders share one live market for 5 minutes. <b>Richest at the closing bell wins.</b></li>
           <li>Every buy pushes the price <span class="up">up</span>, every sell pushes it <span class="down">down</span> — for everyone.</li>
@@ -67,9 +76,16 @@
         <input id="share-link" readonly>
         <button id="btn-copy" class="btn">Copy link</button>
       </div>
-      <div class="share" id="lobby-bots" hidden>
-        <button id="btn-add-bot" class="btn">+ Add AI trader</button>
-        <button id="btn-remove-bot" class="btn ghost">− Remove one</button>
+      <div id="lobby-bots" hidden>
+        <div class="difficulty" role="radiogroup" aria-label="AI difficulty">
+          <button class="diff" data-level="easy" role="radio">Easy<small>Slow AIs, no attacks on you</small></button>
+          <button class="diff" data-level="normal" role="radio">Normal<small>A fair fight</small></button>
+          <button class="diff" data-level="hard" role="radio">Hard<small>Fast, sharp AIs</small></button>
+        </div>
+        <div class="share">
+          <button id="btn-add-bot" class="btn">+ Add AI trader</button>
+          <button id="btn-remove-bot" class="btn ghost">− Remove one</button>
+        </div>
       </div>
       <ul id="lobby-players"></ul>
       <button id="btn-start" class="btn primary wide">🔔 Ring the opening bell</button>
@@ -99,6 +115,7 @@
           <div id="nw" class="big">$10,000</div>
           <div id="nw-change" class="up">+0.0%</div>
         </div>
+        <div id="coach"></div>
         <div class="stat"><label>Cash</label><span id="cash">$10,000</span></div>
         <div class="stat" id="debt-row"><label>Debt</label><span id="debt">$0</span></div>
         <div id="status-badges"></div>
@@ -106,8 +123,8 @@
         <div id="holdings"></div>
         <h4>Credit</h4>
         <div class="loan-box">
-          <button id="btn-loan" class="btn">Take loan</button>
-          <button id="btn-repay" class="btn">Repay</button>
+          <button id="btn-loan" class="btn" title="Borrow cash to trade with. Interest grows every second, so repay it before the bell.">Take loan</button>
+          <button id="btn-repay" class="btn" title="Pay back as much of your loan as your cash allows.">Repay</button>
         </div>
         <p id="loan-note" class="muted small"></p>
         <div id="audits"></div>

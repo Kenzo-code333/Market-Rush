@@ -115,11 +115,12 @@ class Room:
     def toast(self, pid, text: str, level: str = "info"):
         self.send(pid, {"type": "toast", "level": level, "text": text})
 
-    def add_news(self, kind: str, text: str, unconfirmed=False, fake=False, author=None):
-        """kind: 'event' | 'rumor' | 'system' | 'contract'."""
+    def add_news(self, kind: str, text: str, unconfirmed=False, fake=False, author=None, commodities=None):
+        """kind: 'event' | 'rumor' | 'system' | 'contract'.
+        `commodities` lists the goods a headline affects (shown as tags, no direction)."""
         item = {
             "id": _uid(), "t": round(max(0.0, self.now_t()), 1), "kind": kind, "text": text,
-            "unconfirmed": unconfirmed,
+            "unconfirmed": unconfirmed, "commodities": commodities or [],
             "fake": fake, "author": author,  # secret until the recap!
         }
         self.news.append(item)
@@ -304,7 +305,7 @@ class Room:
         # Headline time
         ev = self.next_event
         if ev and ev["at"] <= t:
-            self.add_news("event", ev["headline"])
+            self.add_news("event", ev["headline"], commodities=list(ev["effects"]))
             self.pending_effects.append({"at": t + config.EVENT_DELAY_SECONDS, "effects": ev["effects"]})
             self._schedule_next_event(t + self.rng.uniform(config.EVENT_INTERVAL_MIN, config.EVENT_INTERVAL_MAX))
         # Prices react a couple of seconds after the headline
@@ -709,7 +710,7 @@ class Room:
         """Hide whether rumors are fake / who wrote them — until the recap."""
         out = []
         for n in self.news[-config.NEWS_FEED_LENGTH:]:
-            item = {k: n[k] for k in ("id", "t", "kind", "text", "unconfirmed")}
+            item = {k: n[k] for k in ("id", "t", "kind", "text", "unconfirmed", "commodities")}
             out.append(item)
         return out
 

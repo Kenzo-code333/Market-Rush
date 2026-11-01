@@ -23,7 +23,7 @@ from server.export_data import game_data_js  # noqa: E402
 
 STATIC = ROOT / "static"
 # Dependency order: each module only uses names defined above it.
-MODULES = ["util.js", "charts.js", "game.js", "recap.js", "solo-engine.js", "app.js"]
+MODULES = ["util.js", "charts.js", "coach.js", "game.js", "recap.js", "solo-engine.js", "app.js"]
 
 
 def bundle_js() -> str:

@@ -76,6 +76,7 @@ static/
   js/charts.js         # LiveChart (60fps interpolated) + RecapChart (animated replay)
   js/util.js           # DOM helper h(), formatting, number tweens, toasts, modal
   js/solo-engine.js    # practice mode: JS port of market.py + game.py, AI traders, LocalSocket
+  js/coach.js          # beginner tips shown once each, when the situation first comes up
 server/export_data.py  # config.py + content.py as JS (served at /solo-data.js, embedded by the build)
 tools/build_preview.py # bundles everything into dist/market-rush-preview.html
 tests/test_game.py     # pytest unit tests for the rules
@@ -134,6 +135,35 @@ whether a rumor is fake and who planted it, and insider tips.
   wallet is untouched.
 * If the tab was closed, joining again **with the same name** reclaims the offline trader.
 * Mid-match, the leaderboard shows offline players as "offline". Their wallet stays in the game.
+
+## Helping new players
+
+Measured with headless matches (newcomer play styles vs AI traders), then addressed:
+
+* **Coach** (`coach.js`): a tip box in the portfolio panel explains each mechanic the first time
+  it matters: the goal, breaking news, contracts, rumors, cards, cornering, freezes, debt, frenzy.
+  Each tip shows once per browser. "Hide tips" turns them off and "Show tips" replays them.
+* **Cost preview**: hovering or focusing a BUY, SELL, SHORT or COVER button shows the estimated total,
+  the price move, and a plain-language explanation. It warns when an order moves the price ≥ 8%.
+  It uses the same formula as `market.quote`, with `liquidity`, `trade_fee` and `max_order_impact`
+  sent in the welcome message.
+* **Headline tags**: news events carry `commodities` (the goods affected, without direction), shown
+  as colored chips. Before this, headlines like "mining boom" never named the commodity.
+* **Contract BUY button**: one click buys exactly the units missing for a contract, then DELIVER.
+  Contracts are the biggest money source (about $27k paid out per match), and newcomers used to miss them.
+* **Practice difficulty** (`DIFFICULTY` in `solo-engine.js`): Easy is the default. Easy AIs trade 2.5× slower,
+  with orders about ⅓ the size. They react to only 25% of headlines, don't borrow, wait 20 s before delivering a contract,
+  and never target humans with Freeze or Audit. Normal and Hard are progressively sharper.
+* **Fair AIs**: the AIs used to compare prices against the engine's *hidden* fair value. They now use
+  the 30-second average of the visible chart, like a human would.
+
+Results (40 matches each, rank out of 4, newcomer vs 3 AIs). The "contracts" style is a newcomer who uses the contract BUY button:
+
+| Newcomer style   | Easy        | Normal      | Hard        |
+|------------------|-------------|-------------|-------------|
+| uses contracts   | 1.00 (40 wins) | 1.40 (28) | 2.08 (12) |
+| reads headlines  | 1.70 (15)   | 3.25 (2)    | 3.52 (0)    |
+| buys and holds   | 3.20 (2)    | 3.80 (0)    | 3.83 (0)    |
 
 ## Game rules (as implemented)
 

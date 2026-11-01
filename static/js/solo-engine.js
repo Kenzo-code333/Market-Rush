@@ -114,6 +114,7 @@ class Player {
 export class SoloRoom {
   constructor(code) {
     this.code = code;
+    this.difficulty = "easy";  // practice AI strength: easy | normal | hard (see DIFFICULTY)
     this.players = new Map(); // keeps join order like Python's dict
     this.host_id = null;
     this.outbox = [];
@@ -148,8 +149,8 @@ export class SoloRoom {
   is_frenzy() { return this.phase === "playing" && this.remaining() <= C.CLOSING_FRENZY_SECONDS; }
   send(pid, message) { this.outbox.push([pid, message]); }
   toast(pid, text, level = "info") { this.send(pid, { type: "toast", level, text }); }
-  add_news(kind, text, unconfirmed = false, fake = false, author = null) {
-    const item = { id: uid(), t: r1(Math.max(0, this.now_t())), kind, text, unconfirmed, fake, author };
+  add_news(kind, text, unconfirmed = false, fake = false, author = null, commodities = []) {
+    const item = { id: uid(), t: r1(Math.max(0, this.now_t())), kind, text, unconfirmed, fake, author, commodities };
     this.news.push(item);
     this.dirty = true;
     return item;
@@ -261,7 +262,7 @@ export class SoloRoom {
     }
     const ev = this.next_event;
     if (ev && ev.at <= t) {
-      this.add_news("event", ev.headline);
+      this.add_news("event", ev.headline, false, false, null, Object.keys(ev.effects));
       this.pending_effects.push({ at: t + C.EVENT_DELAY_SECONDS, effects: ev.effects });
       this.schedule_next_event(t + uniform(C.EVENT_INTERVAL_MIN, C.EVENT_INTERVAL_MAX));
     }
@@ -375,6 +376,10 @@ export class SoloRoom {
     if (msg.type === "play_again") { this.play_again(pid); return; }
     if (msg.type === "sync") { this.send(pid, this.history_message()); this.dirty = true; return; }
     if (msg.type === "add_bot") { this.add_bot(); return; }
+    if (msg.type === "set_difficulty") {
+      if (this.phase === "lobby" && msg.level in DIFFICULTY) { this.difficulty = msg.level; this.dirty = true; }
+      return;
+    }
     if (msg.type === "remove_bot") { this.remove_bot(); return; }
     if (msg.type !== "action") return;
     if (this.phase !== "playing") { this.toast(pid, "The market is closed.", "bad"); return; }
@@ -595,9 +600,9 @@ export class SoloRoom {
       frenzy: this.is_frenzy(), tick: this.tick_index,
       prices: Object.fromEntries(IDS.map((cid) => [cid, r2(prices[cid])])),
       corners, players,
-      news: this.news.slice(-C.NEWS_FEED_LENGTH).map(({ id, t, kind, text, unconfirmed }) => ({ id, t, kind, text, unconfirmed })),
+      news: this.news.slice(-C.NEWS_FEED_LENGTH).map(({ id, t, kind, text, unconfirmed, commodities }) => ({ id, t, kind, text, unconfirmed, commodities })),
       contracts: this.contracts.filter((c) => c.status === "open" || t - c.expires_at < 10).map((c) => ({ ...c })),
-      min_players: 2, solo: true,
+      min_players: 2, solo: true, difficulty: this.difficulty,
     };
     if (me) {
       state.me = {
@@ -638,6 +643,20 @@ const BOT_STYLES = {
   Lyra: "trickster",   // plays cards aggressively, shorts rumors
 };
 
+// How strong the AI traders are in practice mode.
+//   pace  : multiplies the time between their actions (bigger = slower)
+//   size  : multiplies their order sizes
+//   news  : chance they react to a headline at all
+//   contracts    : multiplies how eagerly they buy goods to fulfil contracts
+//   loans        : whether they borrow for leverage
+//   deliverDelay : seconds a contract must be open before they deliver (gives humans a window)
+//   meanToHumans : whether Freeze / Audit cards may target human players
+export const DIFFICULTY = {
+  easy:   { label: "Easy",   pace: 2.5, size: 0.35, news: 0.25, contracts: 0.3, loans: false, deliverDelay: 20, meanToHumans: false },
+  normal: { label: "Normal", pace: 1.0, size: 1.0,  news: 1.0,  contracts: 1.0, loans: true,  deliverDelay: 0,  meanToHumans: true },
+  hard:   { label: "Hard",   pace: 0.7, size: 1.25, news: 1.0,  contracts: 1.3, loans: true,  deliverDelay: 0,  meanToHumans: true },
+};
+
 class BotBrain {
   constructor(room, player) {
     this.room = room;
@@ -652,8 +671,10 @@ class BotBrain {
   act(t) {
     const room = this.room, p = this.p;
     if (t < this.nextActAt || room.phase !== "playing") return;
+    const level = DIFFICULTY[room.difficulty] || DIFFICULTY.normal;
+    this.level = level;
     const pace = { value: [2.5, 5], momentum: [1.5, 3.5], news: [2, 4], whale: [3, 6], trickster: [2, 4.5] }[this.style];
-    this.nextActAt = t + uniform(...pace);
+    this.nextActAt = t + uniform(...pace) * level.pace;
     const prices = room.market.prices();
     const send = (m) => room.handle(p.id, { type: "action", ...m });
 
@@ -661,8 +682,9 @@ class BotBrain {
     for (const n of room.news) {
       if (this.seenNews.has(n.id)) continue;
       this.seenNews.add(n.id);
-      if (t - n.t > 6) continue;
-      const hit = IDS.find((cid) => n.text.includes(nameOf(cid)));
+      if (t - n.t > 6 || Math.random() > level.news) continue;
+      // Headlines carry commodity tags (like the ones humans see); rumors only have text
+      const hit = n.commodities?.[0] ?? IDS.find((cid) => n.text.includes(nameOf(cid)));
       if (!hit) continue;
       const bullish = /shortage|halted|doubles|orders|emergency|blight|recall|hoarding|slashed|record|raid|boom: 10|strike|dark|overstated|population|grounds|contaminated|leak|buys every/i.test(n.text);
       if (n.kind === "event" || (n.unconfirmed && Math.random() < (this.style === "trickster" ? 0.2 : 0.45))) {
@@ -684,10 +706,11 @@ class BotBrain {
 
     // 3) Contracts: deliver if possible, otherwise sometimes buy for one
     for (const c of room.contracts.filter((c) => c.status === "open")) {
+      if (t - c.created < level.deliverDelay) continue;
       if (p.holdings[c.commodity] >= c.qty) return send({ action: "deliver", contract: c.id });
       const need = c.qty - p.holdings[c.commodity];
       const cost = need * prices[c.commodity] * 1.15;
-      if (cost < p.cash && cost < c.reward * 0.85 && Math.random() < (this.style === "news" ? 0.7 : 0.25)) {
+      if (cost < p.cash && cost < c.reward * 0.85 && Math.random() < (this.style === "news" ? 0.7 : 0.25) * level.contracts) {
         return send({ action: "buy", commodity: c.commodity, qty: need });
       }
     }
@@ -695,7 +718,8 @@ class BotBrain {
     // 4) Cards
     if (p.cards.length && Math.random() < (this.style === "trickster" ? 0.35 : 0.12)) {
       const card = pick(p.cards);
-      const rivals = [...room.players.values()].filter((x) => x.id !== p.id);
+      const rivals = [...room.players.values()].filter((x) => x.id !== p.id && (level.meanToHumans || x.isBot));
+      if (!rivals.length && ["freeze", "audit"].includes(card.type)) return;
       const leader = rivals.sort((a, b) => room.net_worth(b) - room.net_worth(a))[0];
       const held = IDS.filter((cid) => p.holdings[cid] > 0);
       const shorted = IDS.filter((cid) => p.shorts[cid] > 0);
@@ -717,7 +741,7 @@ class BotBrain {
     // 6) Style-specific trading
     const cid = this.style === "whale" && Math.random() < 0.7 ? this.focus : pick(IDS);
     const c = room.market.c[cid];
-    const dev = c.price / c.anchor - 1;             // above (>0) or below fair value
+    const dev = c.price / this.fairValue(cid) - 1;  // above (>0) or below its recent average
     const last = this.lastPrices[cid] ?? c.price;
     const mom = c.price / last - 1;
     this.lastPrices[cid] = c.price;
@@ -729,22 +753,29 @@ class BotBrain {
       if (mom > 0.02) return send({ action: "buy", commodity: cid, qty: this.size(cid, 0.2) });
       if (mom < -0.02 && p.holdings[cid] > 0) return send({ action: "sell", commodity: cid, qty: "max" });
     } else if (this.style === "whale") {
-      if (p.debt === 0 && room.now_t() < 120 && Math.random() < 0.3) return send({ action: "loan" });
+      if (level.loans && p.debt === 0 && room.now_t() < 120 && Math.random() < 0.3) return send({ action: "loan" });
       if (dev < 0.12) return send({ action: "buy", commodity: cid, qty: this.size(cid, 0.3) });
       if (dev > 0.2 && p.holdings[cid] > 0) return send({ action: "sell", commodity: cid, qty: Math.ceil(p.holdings[cid] / 2) });
     }
 
     // Take profit near the end
     if (room.remaining() < 25) {
-      const held = IDS.filter((x) => p.holdings[x] > 0 && room.market.c[x].price > room.market.c[x].anchor);
+      const held = IDS.filter((x) => p.holdings[x] > 0 && room.market.c[x].price > this.fairValue(x));
       if (held.length) return send({ action: "sell", commodity: pick(held), qty: "max" });
     }
+  }
+
+  /** What a human sees as "normal": the average price of the last 30 seconds on the chart. */
+  fairValue(cid) {
+    const hist = this.room.market.history[cid].slice(-30);
+    return hist.reduce((a, b) => a + b, 0) / hist.length;
   }
 
   /** Spend roughly `share` of cash on this commodity (at least 1 unit). */
   size(cid, share) {
     const price = this.room.market.c[cid].price;
-    return Math.max(1, Math.floor((this.p.cash * share * uniform(0.6, 1.2)) / price));
+    const mult = this.level?.size ?? 1;
+    return Math.max(1, Math.floor((this.p.cash * share * mult * uniform(0.6, 1.2)) / price));
   }
 }
 
@@ -772,13 +803,14 @@ export class LocalSocket {
       this.pid = p.id;
       this.deliver({
         type: "welcome", player_id: p.id, token: p.token, code: room.code,
-        commodities: IDS.map((id) => ({ id, name: C.COMMODITIES[id].name, icon: C.COMMODITIES[id].icon, color: C.COMMODITIES[id].color, start_price: C.COMMODITIES[id].start_price })),
+        commodities: IDS.map((id) => ({ id, name: C.COMMODITIES[id].name, icon: C.COMMODITIES[id].icon, color: C.COMMODITIES[id].color, start_price: C.COMMODITIES[id].start_price, liquidity: C.COMMODITIES[id].liquidity })),
         cards: CONTENT.CARD_INFO,
         config: {
           match_seconds: C.MATCH_SECONDS, frenzy_seconds: C.CLOSING_FRENZY_SECONDS, short_qty: C.SHORT_BUTTON_QTY,
           loan_amount: C.LOAN_AMOUNT, max_debt: C.MAX_DEBT, loan_interest: C.LOAN_INTEREST_PER_MINUTE,
           starting_cash: C.STARTING_CASH, chart_window: C.CHART_WINDOW_SECONDS, tick_seconds: C.TICK_SECONDS,
           max_players: C.MAX_PLAYERS, solo: true,
+          trade_fee: C.TRADE_FEE, max_order_impact: C.MAX_ORDER_IMPACT,
         },
       });
       this.deliver(room.history_message());

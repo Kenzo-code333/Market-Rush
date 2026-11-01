@@ -13,6 +13,15 @@
 
 import { h, $, money, price, pct, clock, setText, flash, tweenNumber, choose } from "./util.js";
 import { LiveChart } from "./charts.js";
+import { Coach } from "./coach.js";
+
+// Plain-language explanations shown when hovering the desk buttons.
+const BUTTON_HELP = {
+  buy: "Buy units now. Your order pushes the price up a little.",
+  sell: "Sell units you own. Your order pushes the price down a little.",
+  short: "Bet on the price FALLING: sell units you don't own now, buy them back later with COVER. You lose if the price rises.",
+  cover: "Close your short: buy back the units you shorted.",
+};
 
 /** Animate elements to their new order (First-Last-Invert-Play technique). */
 function flipReorder(container, els) {
@@ -98,9 +107,16 @@ export class GameView {
     for (const c of comms) {
       const act = (action, qty, label, cls) => h("button", {
         class: `btn trade ${cls}`,
+        "aria-label": `${action} ${qty} ${c.name}`,
         onclick: () => this.send({ type: "action", action, commodity: c.id, qty }),
+        // Hover / keyboard focus shows what the order would cost
+        onmouseenter: () => this.showPreview(c.id, action, qty),
+        onfocus: () => this.showPreview(c.id, action, qty),
+        onmouseleave: () => this.hidePreview(c.id),
+        onblur: () => this.hidePreview(c.id),
       }, label);
       const d = {
+        preview: h("div", { class: "d-preview", hidden: true }),
         price: h("span", { class: "d-price" }, price(c.start_price)),
         held: h("span", { class: "d-held" }, "0"),
         buy: [act("buy", 1, "×1", "buy"), act("buy", 10, "×10", "buy"), act("buy", "max", "MAX", "buy")],
@@ -109,6 +125,7 @@ export class GameView {
         cover: act("cover", "max", "COVER", "cover"),
       };
       d.el = h("div", { class: "desk-col", style: { "--accent": c.color } },
+        d.preview,
         h("div", { class: "desk-head" }, h("b", {}, c.name), d.price),
         h("div", { class: "desk-held" }, "Held ", d.held),
         h("div", { class: "btn-row" }, h("label", {}, "BUY"), ...d.buy),
@@ -137,6 +154,7 @@ export class GameView {
     $("#btn-repay").onclick = () => this.send({ type: "action", action: "repay" });
     $("#loan-note").textContent = `${(this.cfg.loan_interest * 100).toFixed(0)}%/min interest · unpaid debt is penalised at the bell`;
 
+    this.coach = new Coach();
     $("#leaderboard").replaceChildren();
     $("#news").replaceChildren();
     $("#insider").replaceChildren();
@@ -174,6 +192,8 @@ export class GameView {
     this.renderNews(state);
     this.renderContracts(state);
     if (me) this.renderCards(state, me);
+    this.coach.update(state);
+    if (this.previewing) this.showPreview(...this.previewing); // keep the open preview up to date
 
     document.body.classList.toggle("frenzy", !!state.frenzy);
     $("#room-tag").textContent = `ROOM ${state.code}`;
@@ -217,6 +237,64 @@ export class GameView {
       d.short.disabled = !playing || frozen || !me || me.short_capacity[c.id] < this.cfg.short_qty;
       d.cover.disabled = !playing || frozen || short <= 0;
     }
+  }
+
+  // -------------------------------------------------------------------
+  // Cost preview (same formula as server/market.py quote())
+  // -------------------------------------------------------------------
+  /** What would this order cost / pay, and how much would it move the price? */
+  estimate(cid, action, qty) {
+    const s = this.state, me = s?.me;
+    const com = this.w.commodities.find((x) => x.id === cid);
+    if (!me || !com?.liquidity) return { ok: false, qty: 0, total: 0, avg: 0, move: 0 };
+    const fee = this.cfg.trade_fee ?? 0.005, cap = this.cfg.max_order_impact ?? 0.25;
+    const p = s.prices[cid];
+    const quote = (q, dir) => {
+      const impact = Math.min(q * p / com.liquidity, cap);
+      const np = dir > 0 ? p * (1 + impact) : p / (1 + impact);
+      return { avg: (p + np) / 2, move: np / p - 1 };
+    };
+    const buying = action === "buy" || action === "cover";
+    if (qty === "max") {
+      if (action === "sell") qty = me.holdings[cid];
+      else { // largest affordable quantity, like the server's binary search
+        let lo = 0, hi = Math.floor(me.cash / (p * (1 + fee)));
+        while (lo < hi) { const mid = Math.floor((lo + hi + 1) / 2); if (mid * quote(mid, 1).avg * (1 + fee) <= me.cash) lo = mid; else hi = mid - 1; }
+        qty = action === "cover" ? Math.min(lo, me.shorts[cid]) : lo;
+      }
+    }
+    if (qty <= 0) return { ok: false, qty: 0, total: 0, avg: p, move: 0 };
+    const q = quote(qty, buying ? 1 : -1);
+    const total = qty * q.avg * (buying ? 1 + fee : 1 - fee);
+    let ok = buying ? total <= me.cash + 1e-6 : true;
+    if (action === "sell") ok = qty <= me.holdings[cid];
+    if (action === "short") ok = qty <= (me.short_capacity?.[cid] ?? 0);
+    if (action === "cover") ok = ok && qty <= me.shorts[cid];
+    return { ok, qty, total, avg: q.avg, move: q.move };
+  }
+
+  showPreview(cid, action, qty) {
+    this.previewing = [cid, action, qty];
+    const d = this.desk[cid];
+    const name = this.w.commodities.find((x) => x.id === cid).name;
+    const est = this.estimate(cid, action, qty);
+    const arrow = est.move >= 0 ? "▲" : "▼";
+    const moveTxt = `price ${arrow}${Math.abs(est.move * 100).toFixed(1)}%`;
+    let main;
+    if (!est.qty) main = action === "sell" ? `You don't hold any ${name}.` : action === "cover" ? `You have no ${name} short to cover.` : "Not enough cash.";
+    else if (action === "buy") main = est.ok ? `Buy ${est.qty} for ≈${money(est.total)} · ${moveTxt}` : `Not enough cash (≈${money(est.total)})`;
+    else if (action === "sell") main = est.ok ? `Sell ${est.qty} for ≈+${money(est.total)} · ${moveTxt}` : `You only hold ${this.state.me.holdings[cid]}.`;
+    else if (action === "short") main = est.ok ? `Short ${est.qty}: +${money(est.total)} now, buy back later · ${moveTxt}` : "Short limit reached.";
+    else main = est.ok ? `Buy back ${est.qty} for ≈${money(est.total)} · ${moveTxt}` : "Not enough cash to cover.";
+    const warn = est.qty && Math.abs(est.move) >= 0.08
+      ? "Big order: your own trade moves the price against you." : BUTTON_HELP[action];
+    d.preview.replaceChildren(h("b", {}, main), h("span", { class: Math.abs(est.move) >= 0.08 ? "warn" : "" }, warn));
+    d.preview.hidden = false;
+  }
+
+  hidePreview(cid) {
+    this.previewing = null;
+    this.desk[cid].preview.hidden = true;
   }
 
   renderLeaderboard(state) {
@@ -321,9 +399,15 @@ export class GameView {
       if (this.seenNews.has(n.id)) continue;
       this.seenNews.add(n.id);
       const tag = { event: "BREAKING", rumor: "UNCONFIRMED", system: "MARKET", contract: "CONTRACT" }[n.kind];
+      // Tags name the affected goods (not the direction: read the headline!)
+      const tags = (n.commodities || []).map((cid) => {
+        const com = this.w.commodities.find((x) => x.id === cid);
+        return com ? h("span", { class: "news-chip", style: { "--accent": com.color } }, com.name) : null;
+      });
       const el = h("div", { class: `news-item ${n.kind} enter` },
         h("div", { class: "news-tag" }, tag, h("span", { class: "news-time" }, clock(n.t))),
-        h("div", { class: "news-text" }, n.text));
+        h("div", { class: "news-text" }, n.text),
+        tags.length ? h("div", { class: "news-chips" }, tags) : null);
       feed.prepend(el);
       requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("enter")));
       if (n.kind === "event") flash(el, "flash");
@@ -344,6 +428,14 @@ export class GameView {
       if (!el) {
         el = {
           btn: h("button", { class: "btn deliver", onclick: () => this.send({ type: "action", action: "deliver", contract: c.id }) }, "DELIVER"),
+          // One click buys exactly the units still missing for this contract
+          buy: h("button", {
+            class: "btn deliver buy-missing",
+            onclick: () => {
+              const missing = c.qty - (this.state.me?.holdings[c.commodity] ?? 0);
+              if (missing > 0) this.send({ type: "action", action: "buy", commodity: c.commodity, qty: missing });
+            },
+          }, "BUY"),
           bar: h("div", { class: "ct-bar-fill" }),
           status: h("div", { class: "ct-status" }),
           data: c,
@@ -351,7 +443,7 @@ export class GameView {
         el.root = h("div", { class: "contract", style: { "--accent": com.color } },
           h("div", { class: "ct-main" },
             h("div", {}, h("b", {}, `${c.qty} ${com.name}`), h("div", { class: "ct-reward" }, money(c.reward))),
-            el.btn),
+            h("div", { class: "ct-actions" }, el.buy, el.btn)),
           h("div", { class: "ct-bar" }, el.bar), el.status);
         this.contractEls[c.id] = el;
         list.prepend(el.root);
@@ -360,6 +452,16 @@ export class GameView {
       const have = me ? me.holdings[c.commodity] : 0;
       el.btn.disabled = c.status !== "open" || have < c.qty || state.phase !== "playing" || (me && me.frozen_for > 0);
       el.btn.title = `You hold ${have}/${c.qty}`;
+      // "BUY 40 · ≈$1,050" until you hold enough, then only DELIVER remains
+      const missing = c.qty - have;
+      const open = c.status === "open" && state.phase === "playing";
+      el.buy.hidden = !open || missing <= 0;
+      if (!el.buy.hidden) {
+        const est = this.estimate(c.commodity, "buy", missing);
+        setText(el.buy, `BUY ${missing}`);
+        el.buy.title = `Buy the ${missing} ${com.name} you're missing for about ${money(est.total)}, then press DELIVER.`;
+        el.buy.disabled = (me && me.frozen_for > 0) || !est.ok;
+      }
       el.root.classList.toggle("closed", c.status !== "open");
       setText(el.status, c.status === "done" ? `✅ Won by ${c.winner}` : c.status === "expired" ? "⌛ Expired" : `You hold ${have}/${c.qty}`);
     }

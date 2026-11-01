@@ -158,7 +158,7 @@ def welcome_message(room: Room, player) -> dict:
         "player_id": player.id,
         "token": player.token,
         "code": room.code,
-        "commodities": [{"id": cid, **{k: v for k, v in spec.items() if k in ("name", "icon", "color", "start_price")}}
+        "commodities": [{"id": cid, **{k: v for k, v in spec.items() if k in ("name", "icon", "color", "start_price", "liquidity")}}
                         for cid, spec in config.COMMODITIES.items()],
         "cards": content.CARD_INFO,
         "config": {
@@ -172,6 +172,9 @@ def welcome_message(room: Room, player) -> dict:
             "chart_window": config.CHART_WINDOW_SECONDS,
             "tick_seconds": config.TICK_SECONDS,
             "max_players": config.MAX_PLAYERS,
+            # used by the client's cost preview (same formula as market.quote)
+            "trade_fee": config.TRADE_FEE,
+            "max_order_impact": config.MAX_ORDER_IMPACT,
         },
     }
 

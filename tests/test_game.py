@@ -199,3 +199,13 @@ def test_margin_call_force_closes_runaway_shorts():
     assert a.shorts["metals"] == 0
     assert a.cash >= 0                 # shortfall went to debt, not negative cash
     assert a.debt > 0
+
+
+def test_headlines_are_tagged_with_affected_commodities():
+    room, clock, (a, b, c) = make_room()
+    for _ in range(60):
+        clock.now += 1
+        room.tick()
+    events = [n for n in room.state_for(a.id)["news"] if n["kind"] == "event"]
+    assert events and all(n["commodities"] for n in events)
+    assert all(cid in config.COMMODITIES for n in events for cid in n["commodities"])

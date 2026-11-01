@@ -209,6 +209,11 @@ function renderLobby(state) {
   const max = app.welcome.config.max_players;
   const bots = state.players.filter((p) => p.bot).length;
   $("#btn-add-bot").disabled = state.players.length >= max;
+  for (const b of document.querySelectorAll(".diff")) {
+    const on = b.dataset.level === state.difficulty;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-checked", on);
+  }
   $("#btn-remove-bot").disabled = bots === 0;
   $("#lobby-players").replaceChildren(
     ...state.players.map((p) => h("li", { style: { "--pc": p.color }, class: p.id === state.you ? "me" : "" },
@@ -224,7 +229,7 @@ function renderLobby(state) {
   btn.hidden = !isHost;
   btn.disabled = !enough;
   $("#lobby-hint").textContent = isHost
-    ? (solo ? "AI traders read the news, chase contracts and play cards. Good luck."
+    ? (solo ? "First time? Start on Easy. The coach will explain things as they happen."
       : enough ? "Everyone in? Ring the opening bell!" : `Waiting for at least ${state.min_players} traders… share the link!`)
     : "Waiting for the host to start the match…";
 }
@@ -248,6 +253,7 @@ function loop(now) {
 $("#btn-create").onclick = createRoom;
 $("#btn-practice").onclick = startPractice;
 $("#btn-add-bot").onclick = () => send({ type: "add_bot" });
+for (const b of document.querySelectorAll(".diff")) b.onclick = () => send({ type: "set_difficulty", level: b.dataset.level });
 $("#btn-remove-bot").onclick = () => send({ type: "remove_bot" });
 $("#btn-join").onclick = () => {
   const code = $("#code-input").value.trim().toUpperCase();
